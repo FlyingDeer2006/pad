@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Санпад 16 кнопок</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .pan-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .transport-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:active {
+            background-color: #3e8e41;
+        }
+        
+        .pad-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        
+        .pad-button {
+            aspect-ratio: 1/1;
+            border: none;
+            border-radius: 8px;
+            background-color: #6200ea;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .pad-button:hover {
+            background-color: #7c4dff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+        
+        .pad-button:active {
+            background-color: #3700b3;
+            transform: translateY(0);
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+        }
+        
+        input[type="range"] {
+            width: 150px;
+        }
+        
+        .file-input {
+            margin-top: 20px;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .file-input label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Санпад 16 кнопок</h1>
+    
+    <div class="controls">
+        <div class="pan-control">
+            <span>Панорама:</span>
+            <input type="range" id="pan" min="-1" max="1" step="0.1" value="0">
+            <span id="pan-value">0</span>
+        </div>
+        
+        <div class="transport-controls">
+            <button id="play-all">Воспроизвести всё</button>
+            <button id="pause-all">Пауза</button>
+            <button id="stop-all">Стоп</button>
+        </div>
+    </div>
+    
+    <div class="pad-container" id="pad-container">
+        <!-- Кнопки будут добавлены через JavaScript -->
+    </div>
+    
+    <div class="file-input">
+        <label for="sound-files">Загрузите звуковые файлы (выберите 16 файлов, удерживая Ctrl):</label>
+        <input type="file" id="sound-files" multiple accept="audio/*">
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const padContainer = document.getElementById('pad-container');
+            const panControl = document.getElementById('pan');
+            const panValue = document.getElementById('pan-value');
+            const playAllBtn = document.getElementById('play-all');
+            const pauseAllBtn = document.getElementById('pause-all');
+            const stopAllBtn = document.getElementById('stop-all');
+            const soundFilesInput = document.getElementById('sound-files');
+            
+            let sounds = [];
+            let audioContext;
+            let pannerNodes = [];
+            
+            // Инициализация AudioContext при первом взаимодействии
+            function initAudioContext() {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+            
+            // Создание кнопок
+            for (let i = 0; i < 16; i++) {
+                const padButton = document.createElement('button');
+                padButton.className = 'pad-button';
+                padButton.textContent = `Кнопка ${i+1}`;
+                padButton.dataset.index = i;
+                
+                padButton.addEventListener('click', function() {
+                    playSound(i);
+                });
+                
+                padContainer.appendChild(padButton);
+                sounds.push(null);
+                pannerNodes.push(null);
+            }
+            
+            // Обновление значения панорамы
+            panControl.addEventListener('input', function() {
+                panValue.textContent = panControl.value;
+                
+                // Обновляем панораму для всех созданных PannerNodes
+                pannerNodes.forEach(node => {
+                    if (node) {
+                        node.pan.value = parseFloat(panControl.value);
+                    }
+                });
+            });
+            
+            // Воспроизведение звука
+            function playSound(index) {
+                if (!sounds[index]) return;
+                
+                initAudioContext();
+                
+                // Останавливаем предыдущее воспроизведение, если есть
+                if (sounds[index].bufferSource) {
+                    sounds[index].bufferSource.stop();
+                }
+                
+                const source = audioContext.createBufferSource();
+                source.buffer = sounds[index].buffer;
+                
+                // Создаем panner node
+                const panner = audioContext.createStereoPanner();
+                panner.pan.value = parseFloat(panControl.value);
+                
+                source.connect(panner);
+                panner.connect(audioContext.destination);
+                source.start(0);
+                
+                // Сохраняем ссылки для управления
+                sounds[index].bufferSource = source;
+                pannerNodes[index] = panner;
+            }
+            
+            // Воспроизвести все звуки
+            playAllBtn.addEventListener('click', function() {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+                
+                for (let i = 0; i < sounds.length; i++) {
+                    if (sounds[i]) {
+                        playSound(i);
+                    }
+                }
+            });
+            
+            // Пауза всех звуков
+            pauseAllBtn.addEventListener('click', function() {
+                if (audioContext) {
+                    audioContext.suspend();
+                }
+            });
+            
+            // Остановить все звуки
+            stopAllBtn.addEventListener('click', function() {
+                sounds.forEach(sound => {
+                    if (sound && sound.bufferSource) {
+                        sound.bufferSource.stop();
+                        sound.bufferSource = null;
+                    }
+                });
+                
+                pannerNodes = pannerNodes.map(() => null);
+            });
+            
+            // Загрузка звуковых файлов
+            soundFilesInput.addEventListener('change', function(e) {
+                const files = Array.from(e.target.files).slice(0, 16);
+                
+                if (files.length < 16) {
+                    alert('Пожалуйста, выберите 16 звуковых файлов');
+                    return;
+                }
+                
+                initAudioContext();
+                
+                files.forEach((file, index) => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        audioContext.decodeAudioData(e.target.result)
+                            .then(buffer => {
+                                sounds[index] = {
+                                    buffer: buffer,
+                                    bufferSource: null
+                                };
+                                
+                                // Обновляем текст кнопки
+                                const button = padContainer.children[index];
+                                button.textContent = file.name.length > 15 
+                                    ? file.name.substring(0, 12) + '...' 
+                                    : file.name;
+                            })
+                            .catch(error => {
+                                console.error('Ошибка декодирования аудио:', error);
+                                alert(`Ошибка загрузки файла ${file.name}`);
+                            });
+                    };
+                    
+                    reader.readAsArrayBuffer(file);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
