@@ -74,6 +74,12 @@
             cursor: pointer;
             transition: all 0.2s;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
         }
         
         .pad-button:hover {
@@ -88,22 +94,32 @@
             box-shadow: 0 2px 3px rgba(0,0,0,0.1);
         }
         
+        .pad-button .file-input {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .pad-button .button-label {
+            text-align: center;
+            padding: 5px;
+            word-break: break-word;
+            max-width: 100%;
+        }
+        
         input[type="range"] {
             width: 150px;
         }
         
-        .file-input {
-            margin-top: 20px;
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        
-        .file-input label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: bold;
+        .file-name {
+            font-size: 12px;
+            margin-top: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 90%;
         }
     </style>
 </head>
@@ -128,11 +144,6 @@
         <!-- Кнопки будут добавлены через JavaScript -->
     </div>
     
-    <div class="file-input">
-        <label for="sound-files">Загрузите звуковые файлы (выберите 16 файлов, удерживая Ctrl):</label>
-        <input type="file" id="sound-files" multiple accept="audio/*">
-    </div>
-    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const padContainer = document.getElementById('pad-container');
@@ -141,7 +152,6 @@
             const playAllBtn = document.getElementById('play-all');
             const pauseAllBtn = document.getElementById('pause-all');
             const stopAllBtn = document.getElementById('stop-all');
-            const soundFilesInput = document.getElementById('sound-files');
             
             let sounds = [];
             let audioContext;
@@ -158,16 +168,77 @@
             for (let i = 0; i < 16; i++) {
                 const padButton = document.createElement('button');
                 padButton.className = 'pad-button';
-                padButton.textContent = `Кнопка ${i+1}`;
                 padButton.dataset.index = i;
                 
-                padButton.addEventListener('click', function() {
-                    playSound(i);
+                const buttonLabel = document.createElement('div');
+                buttonLabel.className = 'button-label';
+                buttonLabel.textContent = `Кнопка ${i+1}`;
+                
+                const fileNameDisplay = document.createElement('div');
+                fileNameDisplay.className = 'file-name';
+                fileNameDisplay.textContent = 'Нет файла';
+                
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.className = 'file-input';
+                fileInput.accept = 'audio/*';
+                fileInput.dataset.index = i;
+                
+                padButton.appendChild(buttonLabel);
+                padButton.appendChild(fileNameDisplay);
+                padButton.appendChild(fileInput);
+                
+                padButton.addEventListener('click', function(e) {
+                    // Игнорируем клик, если он был на input
+                    if (e.target !== fileInput) {
+                        playSound(i);
+                    }
+                });
+                
+                fileInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    loadSoundFile(i, file);
                 });
                 
                 padContainer.appendChild(padButton);
                 sounds.push(null);
                 pannerNodes.push(null);
+            }
+            
+            // Загрузка звукового файла
+            function loadSoundFile(index, file) {
+                initAudioContext();
+                
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    audioContext.decodeAudioData(e.target.result)
+                        .then(buffer => {
+                            sounds[index] = {
+                                buffer: buffer,
+                                bufferSource: null,
+                                name: file.name
+                            };
+                            
+                            // Обновляем отображение
+                            const button = padContainer.children[index];
+                            const label = button.querySelector('.button-label');
+                            const fileNameDisplay = button.querySelector('.file-name');
+                            
+                            label.textContent = `Кнопка ${index+1}`;
+                            fileNameDisplay.textContent = file.name.length > 20 
+                                ? file.name.substring(0, 17) + '...' 
+                                : file.name;
+                        })
+                        .catch(error => {
+                            console.error('Ошибка декодирования аудио:', error);
+                            alert(`Ошибка загрузки файла ${file.name}`);
+                        });
+                };
+                
+                reader.readAsArrayBuffer(file);
             }
             
             // Обновление значения панорамы
@@ -239,44 +310,6 @@
                 });
                 
                 pannerNodes = pannerNodes.map(() => null);
-            });
-            
-            // Загрузка звуковых файлов
-            soundFilesInput.addEventListener('change', function(e) {
-                const files = Array.from(e.target.files).slice(0, 16);
-                
-                if (files.length < 16) {
-                    alert('Пожалуйста, выберите 16 звуковых файлов');
-                    return;
-                }
-                
-                initAudioContext();
-                
-                files.forEach((file, index) => {
-                    const reader = new FileReader();
-                    
-                    reader.onload = function(e) {
-                        audioContext.decodeAudioData(e.target.result)
-                            .then(buffer => {
-                                sounds[index] = {
-                                    buffer: buffer,
-                                    bufferSource: null
-                                };
-                                
-                                // Обновляем текст кнопки
-                                const button = padContainer.children[index];
-                                button.textContent = file.name.length > 15 
-                                    ? file.name.substring(0, 12) + '...' 
-                                    : file.name;
-                            })
-                            .catch(error => {
-                                console.error('Ошибка декодирования аудио:', error);
-                                alert(`Ошибка загрузки файла ${file.name}`);
-                            });
-                    };
-                    
-                    reader.readAsArrayBuffer(file);
-                });
             });
         });
     </script>
